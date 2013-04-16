@@ -1,0 +1,40 @@
+* Valijate
+** Overview
+   Valijate is a JSON validator written in Erlang.
+   It combines the tasks of validating that a JSON value has a given type,
+   and putting the data therein on a form which makes it easy to process
+   with Erlang's pattern matching.
+
+   Valijate can handle JSON values on the formats emitted by the
+   mochijson2 and ejson JSON parsers.
+
+** Comparison to similar tools
+   There is a language-independent JSON type language, "JSON-schema".
+   [[https://github.com/klarna/jesse][Jesse]] is an Erlang implementation of a JSON-schema validator.
+   Valijate is more lightweight, ad-hoc and Erlang-specific.
+
+   The [[https://github.com/seth/ej][ej]] set of Erlang JSON helper functions also contains a JSON validator.
+   Valijate is different in that instead of providing some functions for
+   validating and others for accessing JSON values, it combines those two
+   tasks.
+
+** Example
+   The following example converts a JSON string into an Erlang term
+   of the form {Authors, Title, Available, Price}.
+
+   > S = "{\"title\": \"Hogwarts, a History\", \"authors\":[\"Bathilda Bagshot\"], "++
+         " \"price\": 3.99, \"available\": true}".
+   > T = {object, [{<<"authors">>, {array,string}}, {<<"title">>, string},
+                   {<<"available">>, boolean}, {<<"price">>, number}]}.
+   > J = mochijson2:decode(S).
+   > {ok,V} = valijate:validate(J,T).
+
+   => {ok,{[<<"Bathilda Bagshot">>], <<"Hogwarts, a History">>,true,3.99}}
+
+   Note that the type specification determines the order of values in the
+   resulting tuple - the order within the JSON object does not matter.
+
+** Error handling
+*** Wrong type
+*** Missing object field
+

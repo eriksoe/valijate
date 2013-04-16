@@ -1,0 +1,7 @@
+*.beam
+*.app
+.eunit/
+
+# Backup files:
+*~
+*.bak
