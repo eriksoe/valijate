@@ -15,8 +15,8 @@
       | {object, [json_object_field_spec()]}
       | {satisfy, fun((_)->_), condition_description()}
       | {convert, fun((_)->_), condition_description()}
-      | {either, [json_spec()]}
-      | {pipeline, [json_spec()]}.
+      | {either, [json_spec()]}                 % TODO: Planned
+      | {pipeline, [json_spec()]}.              % TODO: Planned
 
 -type validation_error() ::
         {bad_type_spec, _}
