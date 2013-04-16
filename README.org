@@ -22,6 +22,7 @@
    The following example converts a JSON string into an Erlang term
    of the form {Authors, Title, Available, Price}.
 
+#+BEGIN_SRC erlang
    > S = "{\"title\": \"Hogwarts, a History\", \"authors\":[\"Bathilda Bagshot\"], "++
          " \"price\": 3.99, \"available\": true}".
    > T = {object, [{<<"authors">>, {array,string}}, {<<"title">>, string},
@@ -30,11 +31,95 @@
    > {ok,V} = valijate:validate(J,T).
 
    => {ok,{[<<"Bathilda Bagshot">>], <<"Hogwarts, a History">>,true,3.99}}
+#+END_SRC
 
    Note that the type specification determines the order of values in the
    resulting tuple - the order within the JSON object does not matter.
 
 ** Error handling
+   A JSON value can fail validation in several different ways.
+   In all cases, the validator will report the location of the troubling item.
+
 *** Wrong type
+    The simplest kind of error is when an item is expected to have one
+    type, but turns out to have another type:
+#+BEGIN_SRC erlang
+    > E1 = valijate:validate(mochijson2:decode("[]"), number).
+    => {validation_error,[],{wrong_type,[],array,number}}
+
+    > valijate:error_to_english(E1).
+    => "At path <root> : Value has type array, but number was expected"
+#+END_SRC
+
+    The path to the error is reported.
+    For array items, the path is the (zero-based) index of the item:
+#+BEGIN_SRC erlang
+    > E2 = valijate:validate(mochijson2:decode("[true, false, 42]"), {array, boolean}).
+    > valijate:error_to_english(E2).
+    => "At path [2] : Value 42 has type number, but boolean was expected"
+#+END_SRC
+
+    For objects, the path is the name of the object field:
+#+BEGIN_SRC erlang
+    > E3 = valijate:validate(mochijson2:decode("{\"foo\":\"42\"}"),
+           {object, [{<<"foo">>, number}]}).
+    > valijate:error_to_english(E3).
+    => "At path .foo : Value has type string, but number was expected"
+
+    > E4 = valijate:validate(mochijson2:decode("{\"foo\": {\"bar\":\"42\"}}"),
+           {object, [{<<"foo">>, {object, [{<<"bar">>, number}]}}]}).
+    > valijate:error_to_english(E4).
+    => "At path .foo.bar : Value has type string, but number was expected"
+#+END_SRC
+
 *** Missing object field
+    Object fields may be required or optional.
+    If a required field is missing, it is reported as an error:
+#+BEGIN_SRC erlang
+    > E10 = valijate:validate(mochijson2:decode("{}"),
+                              {object, [{<<"heavy">>, boolean}]}).
+    > valijate:error_to_english(E10).
+    => "At path <root> : The object is missing field \"heavy\""
+#+END_SRC
+
+    Optional fields may be absent, in which case their default value
+    is filled in:
+#+BEGIN_SRC erlang
+    > valijate:validate(mochijson2:decode("{}"),
+                        {object, [{opt, <<"heavy">>, boolean, maybe}]}).
+    => {ok,{maybe}}
+#+END_SRC
+
+*** Superfluous object fields
+    As default, objects may not contain fields which are not mentioned
+    in the type specification.  Extra fields are reported as an error:
+
+#+BEGIN_SRC erlang
+    > E12 = valijate:validate(mochijson2:decode("{\"a\":12, \"b\":23, \"c\":34}"),
+                              {object, [{<<"b">>, number}]}).
+    > valijate:error_to_english(E12).
+    => "At path <root> : The object has superfluous fields: \"a\", \"c\""
+#+END_SRC
+
+    If desired, extra fields may be caught and preserved:
+#+BEGIN_SRC erlang
+    > valijate:validate(mochijson2:decode("{\"a\":12, \"b\":23, \"c\":34}"),
+                        {object, [{<<"b">>, number},
+                                  {keep_rest, fun(X) -> {rest, X} end}]}).
+    => {ok,{23,{rest,[{<<"a">>,12},{<<"c">>,34}]}}}
+#+END_SRC
+
+*** Constraint not satisfied
+    Items can be subject to Custom constraints:
+#+BEGIN_SRC erlang
+    > IsPhoneNo = fun(X) -> re:run(X, "^[0-9]+$", [{capture, none}]) == match end.
+    > valijate:validate(mochijson2:decode("{\"phone\": \"12349\"}"),
+                              {object, [{<<"phone">>, {satisfy, IsPhoneNo, "phone number"}}]}).
+    => {ok,{<<"12349">>}}
+
+    > E15 = valijate:validate(mochijson2:decode("{\"phone\": \"+555\"}"),
+                              {object, [{<<"phone">>, {satisfy, IsPhoneNo, "phone number"}}]}).
+    > valijate:error_to_english(E15).
+    => "At path .phone : The value does not satisfy phone number: <<\"+555\">>\n"
+#+END_SRC
 

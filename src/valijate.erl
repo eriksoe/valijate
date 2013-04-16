@@ -1,6 +1,6 @@
 -module(valijate).
 
--export([validate/2]).
+-export([validate/2, error_to_english/1]).
 
 -type condition_description() :: string().
 -type json_shallow_type() :: null | number | string | boolean | array | object.
@@ -41,24 +41,32 @@ validate(Value, Type) ->
             VErr
     end.
 
+%% Simple types:
 validate(V, number, _)  when is_number(V)  -> V;
 validate(V, string, _)  when is_binary(V)  -> V;
 validate(V, boolean, _) when is_boolean(V) -> V;
 validate(V=null, null, _) -> V;
 validate(V, Spec, RevPath) when is_atom(Spec) ->
     type_error(Spec, V, RevPath);
+%% Arrays:
 validate(V, {array, ElemType}, RevPath) ->
     if is_list(V) ->
             validate_array(V, ElemType, RevPath);
        true ->
             type_error(array, V, RevPath)
     end;
-validate({struct, Fs}, {object, FieldTypes}, RevPath) when is_list(Fs) ->
+%% Objects:
+validate({struct, Fs}, {object, FieldTypes}, RevPath) when is_list(Fs),
+                                                           is_list(FieldTypes) ->
     %% MochiJSON style object
     validate_object(Fs, FieldTypes, RevPath);
-validate({Fs}, {object, FieldTypes}, RevPath) when is_list(Fs) ->
+validate({Fs}, {object, FieldTypes}, RevPath) when is_list(Fs),
+                                                   is_list(FieldTypes) ->
     %% EJSON style object
     validate_object(Fs, FieldTypes, RevPath);
+validate(V, {object, _FieldTypes}, RevPath) ->
+    type_error(object, V, RevPath);
+%% Advanced type specs:
 validate(V, {satisfy, F, CondDescr}, RevPath) when is_function(F,1) ->
     case F(V) of
         true -> V;
@@ -109,7 +117,7 @@ validate_object_field(Obj, {opt, FName, FSpec, Default}, RevPath) ->
         {value, {_,V}, Rest} ->
             {validate(V, FSpec, [FName|RevPath]), Rest};
         false ->
-            Default
+            {Default, Obj}
     end;
 validate_object_field(Obj, {keep_rest, F}, _RevPath) ->
     {F(Obj), []}.
@@ -135,3 +143,40 @@ json_type(V) when is_boolean(V) -> boolean;
 json_type(V) when is_list(V)    -> array;
 json_type({Fs})         when is_list(Fs) -> object; % EJSON style
 json_type({struct, Fs}) when is_list(Fs) -> object. % MochiJSON style
+
+%%% Convert a validation-error output to a human readable description
+%%% of the error.
+-spec error_to_english/1 :: (validation_error()) -> iolist().
+error_to_english({validation_error, Path, Details}) ->
+    PathTxt = path_to_string(Path),
+    DetailText =
+        case Details of
+            {bad_type_spec, Spec} ->
+                io_lib:format("The type spec ~p is malformed", [Spec]);
+            {wrong_type, Value, Found, Expected} ->
+                if is_atom(Value);
+                   is_number(Value) ->
+                        io_lib:format("Value ~p has type ~p, but ~p was expected", [Value, Found, Expected]);
+                   true ->
+                        io_lib:format("Value has type ~p, but ~p was expected", [Found, Expected])
+                end;
+            {missing_field, FieldName} ->
+                io_lib:format("The object is missing field \"~s\"", [FieldName]);
+            {superfluous_fields, FieldNames} ->
+                "The object has superfluous fields: "
+                    ++ string:join([["\"", FN, "\""] || FN <- FieldNames],
+                                   ", ");
+            {does_not_satisfy, Value, CondDescr} ->
+                io_lib:format("The value does not satisfy ~s: ~p\n",
+                              [CondDescr, Value])
+        end,
+    lists:flatten(io_lib:format("At path ~s : ~s", [PathTxt, DetailText])).
+
+path_to_string([]) -> "<root>";
+path_to_string(Path) ->
+    [if is_integer(P) ->
+             ["[", integer_to_list(P), "]"];
+        is_binary(P) ->
+             [".", P]
+     end
+     || P <- Path].
