@@ -59,3 +59,36 @@ object2_happy_case_test() ->
                {<<"ginny">>, true}]},
     ?assertEqual({ok, {-123, <<"Hello, Harry!">>, true}},
                  valijate:validate(Object, Spec)) end).
+
+
+object_superfluous_fields_test() ->
+    Spec = {object, [{<<"a">>, number},
+                     {<<"b">>, string}]},
+    Object = {struct,
+              [{<<"b">>, <<"string">>},
+               {<<"a">>, -123},
+               {<<"c">>, 0}]},
+    ?assertEqual({validation_error, [], {superfluous_fields, [<<"c">>]}},
+                 valijate:validate(Object, Spec)).
+
+object_ignore_rest_test() ->
+    Spec = {object, [{<<"a">>, number},
+                     {<<"b">>, string}
+                     | ignore_rest]},
+    Object = {struct,
+              [{<<"b">>, <<"string">>},
+               {<<"a">>, -123},
+               {<<"c">>, 0}]},
+    ?assertEqual({ok, {-123, <<"string">>}},
+                 valijate:validate(Object, Spec)).
+
+object_keep_rest_test() ->
+    Spec = {object, [{<<"a">>, number},
+                     {<<"b">>, string}
+                     | {keep_rest, fun(L) -> {tag, L} end}]},
+    Object = {struct,
+              [{<<"b">>, <<"string">>},
+               {<<"a">>, -123},
+               {<<"c">>, 0}]},
+    ?assertEqual({ok, {-123, <<"string">>, {tag, [{<<"c">>, 0}]}}},
+                 valijate:validate(Object, Spec)).

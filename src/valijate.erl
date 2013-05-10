@@ -7,12 +7,12 @@
 -type field_name() :: binary().
 -type json_object_field_spec() ::
         {field_name(), json_spec()}
-      | {opt, field_name(), json_spec(), Default::_}
-      | {keep_rest, fun(([_])-> _)}.
+      | {opt, field_name(), json_spec(), Default::_}.
+-type json_field_extras_spec() :: ignore_rest | {keep_rest, fun(([_])-> _)}.
 -type json_spec() ::
         number | string | boolean | null
       | {array, json_spec}
-      | {object, [json_object_field_spec()]}
+      | {object, maybe_improper_list(json_object_field_spec(), json_field_extras_spec())}
       | {satisfy, fun((_)->_), condition_description()}
       | {convert, fun((_)->_), condition_description()}
       | {either, [json_spec()]}                 % TODO: Planned
@@ -90,13 +90,10 @@ validate_array([H|T], ElemType, RevPath, Idx) ->
     [validate(H, ElemType, [Idx|RevPath])
      | validate_array(T, ElemType, RevPath, Idx+1)].
 
+%%%---------- Objects ----------------------------------------
 validate_object(Fs, FieldTypes, RevPath) ->
     {FVs,RestObj} =
-        lists:mapfoldl(fun(FieldSpec, Obj) ->
-                               validate_object_field(Obj, FieldSpec, RevPath)
-                       end,
-                       Fs,
-                       FieldTypes),
+        validate_object_fields(FieldTypes, Fs, [], RevPath),
     if RestObj==[] ->
             list_to_tuple(FVs);
        true ->
@@ -104,7 +101,20 @@ validate_object(Fs, FieldTypes, RevPath) ->
             validation_error(RevPath, {superfluous_fields, ExtraFieldNames})
     end.
 
-%%%---------- Objects ----------------------------------------
+validate_object_fields([FT | FTRest], Obj, Acc, RevPath) ->
+    {FV, ObjRest} = validate_object_field(Obj, FT, RevPath),
+    validate_object_fields(FTRest, ObjRest, [FV|Acc], RevPath);
+validate_object_fields([], Obj, Acc, _RevPath) ->
+    {lists:reverse(Acc), Obj};
+validate_object_fields(ignore_rest, _Obj, Acc, _RevPath) ->
+    {lists:reverse(Acc), []};
+validate_object_fields({keep_rest, F}, Obj, Acc, _RevPath) when is_function(F,1) ->
+    {lists:reverse(Acc, [F(Obj)]), []};
+validate_object_fields(BadSpec, _, _, RevPath) ->
+    validation_error(RevPath, {bad_type_spec, {bad_fields_spec, BadSpec}}).
+
+
+
 validate_object_field(Obj, {FName, FSpec}, RevPath) when is_binary(FName) ->
     case lists:keytake(FName, 1, Obj) of
         {value, {_,V}, Rest} ->
