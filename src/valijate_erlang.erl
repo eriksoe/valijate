@@ -7,12 +7,12 @@
 -type field_name() :: atom().
 -type proplist_field_spec() ::
         {atom(), type_spec()}
-      | {opt, atom(), type_spec(), Default::_}
-      | {keep_rest, fun(([_])-> _)}.
+      | {opt, atom(), type_spec(), Default::_}.
+-type proplist_field_extras_spec() :: ignore_rest | {keep_rest, fun(([_])-> _)}.
 -type type_spec() ::
         atom | integer | float | number | binary | boolean | list | tuple | string
       | {list, type_spec}
-      | {proplist, [proplist_field_spec()]}
+      | {proplist, maybe_improper_list(proplist_field_spec(), proplist_field_extras_spec())}
       | {satisfy, fun((_)->_), condition_description()}
       | {convert, fun((_)->_), condition_description()}
       | {either, [type_spec()]}                 % TODO: Planned
@@ -99,14 +99,10 @@ validate_list(Tail, _ElemType, RevPath, _Idx) ->
     validation_error(RevPath,
                      {unpure_list, Tail, shallow_type(Tail)}).
 
-
+%%%---------- Objects ----------------------------------------
 validate_proplist(Fs, FieldTypes, RevPath) ->
     {FVs,RestObj} =
-        lists:mapfoldl(fun(FieldSpec, Obj) ->
-                               validate_proplist_field(Obj, FieldSpec, RevPath)
-                       end,
-                       Fs,
-                       FieldTypes),
+        validate_proplist_fields(FieldTypes, Fs, [], RevPath),
     if RestObj==[] ->
             list_to_tuple(FVs);
        true ->
@@ -114,7 +110,19 @@ validate_proplist(Fs, FieldTypes, RevPath) ->
             validation_error(RevPath, {superfluous_fields, ExtraFieldNames})
     end.
 
-%%%---------- Objects ----------------------------------------
+validate_proplist_fields([FT | FTRest], Obj, Acc, RevPath) ->
+    {FV, ObjRest} = validate_proplist_field(Obj, FT, RevPath),
+    validate_proplist_fields(FTRest, ObjRest, [FV|Acc], RevPath);
+validate_proplist_fields([], Obj, Acc, _RevPath) ->
+    {lists:reverse(Acc), Obj};
+validate_proplist_fields(ignore_rest, _Obj, Acc, _RevPath) ->
+    {lists:reverse(Acc), []};
+validate_proplist_fields({keep_rest, F}, Obj, Acc, _RevPath) when is_function(F,1) ->
+    {lists:reverse(Acc, [F(Obj)]), []};
+validate_proplist_fields(BadSpec, _, _, RevPath) ->
+    validation_error(RevPath, {bad_type_spec, {bad_fields_spec, BadSpec}}).
+
+
 validate_proplist_field(Obj, {FName, FSpec}, RevPath) when is_atom(FName) ->
     case lists:keytake(FName, 1, Obj) of
         {value, {_,V}, Rest} ->

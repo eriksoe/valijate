@@ -80,3 +80,24 @@ proplist_happy_case_test() ->
               {ginny, true}],
     ?assertEqual({ok, {<<"Hello, Harry!">>, "Hello, Harry!", true}},
                  valijate_erlang:validate(Object, Spec)) end).
+
+
+proplist_ignore_rest_test() ->
+    Spec = {proplist, [{a, number},
+                       {b, string}
+                       | ignore_rest]},
+    Proplist = [{b, "string"},
+                {a, -123},
+                {c, 0}],
+    ?assertEqual({ok, {-123, "string"}},
+                 valijate_erlang:validate(Proplist, Spec)).
+
+proplist_keep_rest_test() ->
+    Spec = {proplist, [{a, number},
+                       {b, string}
+                       | {keep_rest, fun(L) -> {tag, L} end}]},
+    Proplist = [{b, "string"},
+                {a, -123},
+                {c, 0}],
+    ?assertEqual({ok, {-123, "string", {tag, [{c, 0}]}}},
+                 valijate_erlang:validate(Proplist, Spec)).
