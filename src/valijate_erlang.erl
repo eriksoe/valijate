@@ -206,6 +206,8 @@ path_to_string(Path) ->
     [if is_integer(P) ->
              ["[", integer_to_list(P), "]"];
         is_binary(P) ->
-             [".", P]
+             [".", P];
+        is_atom(P) ->
+             [".", atom_to_list(P)]
      end
      || P <- Path].
