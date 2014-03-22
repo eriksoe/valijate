@@ -121,6 +121,136 @@ object_keep_rest_test() ->
     ?assertEqual({ok, {-123, <<"string">>, {tag, [{<<"c">>, 0}]}}},
                  valijate:json(Object, Spec)).
 
+
+%%%========== Member: ========================================
+
+member_test() ->
+    Allowed = [<<"this is allowed">>, 25,50,75.0, [], {struct, []}],
+    Spec = {member, Allowed},
+    lists:foreach(fun(V) -> ?assertEqual({ok,V}, valijate:json(V, Spec)) end,
+                  Allowed ++ [25.0, 50.0, 75]),
+
+    lists:foreach(fun(V) -> ?assertMatch({validation_error,json,[],{not_member,V,Allowed}},
+                                         valijate:json(V, Spec)) end,
+                  [<<"this is not allowed">>, 25.1,49,74.99, [1], {struct, [{<<"k">>,50}]}]),
+    ok.
+
+%%%========== Either: ========================================
+
+%%% An empty 'either' rejects everything.
+either0_test() ->
+    lists:foreach(fun(V) ->
+                          ?assertEqual({validation_error, json, [], {does_not_satisfy, V, "any of the allowed types"}},
+                                       valijate:json(V, {either, []}))
+                  end,
+                  [atom, 1, 2.5, {a,pair}, [a,list]]).
+
+either1_test() ->
+    ?LOG_TRACE(begin
+    TVs = [{number, 12345},
+           {string, <<"Some string">>},
+           {{array, number}, [123.45, 67, 8.9]}],
+
+    %% Matrix check: Type from T1, input from Input:
+    [begin
+         Spec = {either, [T1]},
+         TypeOK = InputType=:=T1,
+         if TypeOK ->
+                 ?assertEqual({ok,InputValue}, valijate:json(InputValue, Spec));
+            not TypeOK ->
+                 ?assertEqual({validation_error, json, [], {does_not_satisfy, InputValue, "any of the allowed types"}},
+                              valijate:json(InputValue, Spec))
+         end
+     end
+     || {T1,_} <- TVs,
+        {InputType,InputValue} <- TVs
+    ]
+               end).
+
+either2_test() ->
+    ?LOG_TRACE(begin
+    TVs = [{number, 12345},
+           {string, <<"Some string">>},
+           {{array, number}, [123.45, 67, 8.9]}],
+
+    %% Matrix check: Type from T1 and T2, input from Input:
+    [begin
+         Spec = {either, [T1,T2]},
+         TypeOK = InputType=:=T1 orelse InputType=:=T2,
+         if TypeOK ->
+                 ?assertEqual({ok,InputValue}, valijate:json(InputValue, Spec));
+            not TypeOK ->
+                 ?assertEqual({validation_error, json, [], {does_not_satisfy, InputValue, "any of the allowed types"}},
+                              valijate:json(InputValue, Spec))
+         end
+     end
+     || {T1,_} <- TVs,
+        {T2,_} <- TVs,
+        {InputType,InputValue} <- TVs
+    ]
+               end).
+
+either4_test() ->
+    TVs = [{number, 12345},
+           {string, <<"Some string">>},
+           {{array, number}, [123.45, 67, 8.9]}],
+    Spec = {either, [T || {T,_} <- TVs]},
+    lists:foreach(fun(V) ->
+                          ?assertEqual({ok,V}, valijate:json(V, Spec))
+                  end,
+                  [V || {_,V} <- TVs]).
+
+%%%========== Pipeline: ========================================
+
+%%% An empty 'pipeline' accepts anything and is the identity transform.
+pipeline0_test() ->
+    Values = value_collection(),
+    Spec = {pipeline, []},
+    lists:foreach(fun(V) ->
+                          ?assertEqual({ok,V}, valijate:json(V, Spec))
+                  end,
+                  Values).
+
+%%% A singleton pipeline is identical to just its single type.
+pipeline_singleton_test() ->
+    [?assertEqual(valijate:json(Value, Type),
+                  valijate:json(Value, {pipeline, [Type]}))
+     || Type <- type_collection(),
+        Value <- value_collection()].
+
+%%% An identity transform in a pipeline changes nothing.
+pipeline_add_identity_test() ->
+    Identity = {convert, fun(X) -> {ok,X} end, "identity"},
+    [begin
+         ?assertEqual(valijate:json(Value, Type),
+                      valijate:json(Value, {pipeline, [Type, Identity]})),
+         ?assertEqual(valijate:json(Value, Type),
+                      valijate:json(Value, {pipeline, [Identity, Type]}))
+     end
+     || Type <- type_collection(),
+        Value <- value_collection()].
+
+%%% The transformations in the pipeline are in fact applied.
+pipeline_squash_test() ->
+    ?LOG_TRACE(begin
+    Squash  = {convert, fun(_) -> {ok, <<"squashed">>} end, "squash"},
+    Squash2 = {convert, fun(_) -> {ok, <<"squashed2">>} end, "squash"},
+    [begin
+         ?assertEqual({ok, <<"squashed">>},
+                      valijate:json(Value, {pipeline, [Squash, string]})),
+         ?assertEqual({ok, <<"squashed2">>},
+                      valijate:json(Value, {pipeline, [Squash, string, Squash2]})),
+         Expected = case valijate:json(Value, Type) of
+                        {ok,_} -> {ok, <<"squashed">>};
+                        {validation_error,_,_,_}=VErr -> VErr
+                    end,
+         ?assertEqual(Expected,
+                      valijate:json(Value, {pipeline, [Type, Squash]}))
+     end
+     || Type <- type_collection(),
+        Value <- value_collection()]
+               end).
+
 %%%============================================================
 
 type_collection() ->

@@ -17,8 +17,9 @@
       | {object, maybe_improper_list(json_object_field_spec(), json_field_extras_spec())}
       | {satisfy, fun((_)->_), condition_description()}
       | {convert, fun((_)->_), condition_description()}
-      | {either, [type_spec()]}                 % TODO: Planned
-      | {pipeline, [type_spec()]}.              % TODO: Planned
+      | {member, [_]}
+      | {either, [type_spec()]}
+      | {pipeline, [type_spec()]}.
 
 -type validation_error_reason() ::
         {bad_type_spec, _}
@@ -81,6 +82,15 @@ validate(V, {convert, F, CondDescr}, RevPath) when is_function(F,1) ->
         {ok,Result} -> Result;
         {error,_Err} -> validation_error(RevPath, {does_not_satisfy, V, CondDescr})
     end;
+validate(V, {member, AllowedValues}, RevPath) ->
+    case lists:any(fun(AV) -> V==AV end, AllowedValues) of % Compare by '==', not '=:='
+        true -> V;
+        false -> validation_error(RevPath, {not_member, V, AllowedValues})
+    end;
+validate(V, {either, Types}, RevPath) ->
+    validate_either(V, Types, RevPath);
+validate(V, {pipeline, Types}, RevPath) ->
+    validate_pipeline(V, Types, RevPath);
 validate(_, BadSpec, RevPath) ->
     validation_error(RevPath, {bad_type_spec, BadSpec}).
 
@@ -135,6 +145,24 @@ validate_object_field(Obj, {opt, FName, FSpec, Default}, RevPath) ->
     end;
 validate_object_field(Obj, {keep_rest, F}, _RevPath) ->
     {F(Obj), []}.
+
+%%%---------- Disjunction ----------------------------------------
+validate_either(V, [], RevPath) ->
+    %% Another possibility is to report all of the sub-validation error reasons.
+    validation_error(RevPath, {does_not_satisfy, V, "any of the allowed types"});
+validate_either(V, [Type|Types], RevPath) ->
+    case validate(V, Type) of
+        {ok,Result} -> Result;
+        {validation_error,_,_,_} ->
+            validate_either(V, Types, RevPath)
+    end.
+
+%%%---------- Pipeline ----------------------------------------
+validate_pipeline(V, [], _RevPath) ->
+    V;
+validate_pipeline(V, [Type|Types], RevPath) ->
+    V2 = validate(V, Type, RevPath),
+    validate_pipeline(V2, Types, RevPath).
 
 
 %%%========== Error reporting ========================================

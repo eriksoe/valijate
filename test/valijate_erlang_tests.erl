@@ -246,7 +246,7 @@ pipeline_add_identity_test() ->
 
 %%% The transformations in the pipeline are in fact applied.
 pipeline_squash_test() ->
-    Squash = {convert, fun(X) -> {ok, squashed} end, "squash"},
+    Squash  = {convert, fun(X) -> {ok, squashed} end, "squash"},
     Squash2 = {convert, fun(X) -> {ok, squashed2} end, "squash"},
     [begin
          ?assertEqual({ok, squashed},
