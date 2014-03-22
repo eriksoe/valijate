@@ -20,7 +20,7 @@
       | {either, [type_spec()]}                 % TODO: Planned
       | {pipeline, [type_spec()]}.              % TODO: Planned
 
--type validation_error() ::
+-type validation_error_reason() ::
         {bad_type_spec, _}
       | {wrong_type, Value::_, Found::erlang_shallow_type(), Expected::erlang_shallow_type()}
       | {unpure_list, Tail::_, Found::erlang_shallow_type()}
@@ -28,6 +28,8 @@
       | {superfluous_fields, [field_name()]}
         %% TODO: Add case for converter errors.
       | {does_not_satisfy, Value::_, condition_description()}.
+-type validation_error() ::
+        {validation_error, erlang, term_path(), validation_error_reason()}.
 
 -type term_path() :: [binary() | integer()].
 
@@ -36,7 +38,7 @@
 %%% Validate and reform an Erlang term.
 %%%
 -spec validate/2 :: (_Term, _Type :: type_spec()) ->
-                            {ok, _} | {validation_error, erlang, term_path(), validation_error()}.
+                            validation_error().
 
 validate(Value, Type) ->
     try {ok, validate(Value, Type, [])}

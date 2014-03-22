@@ -20,13 +20,15 @@
       | {either, [type_spec()]}                 % TODO: Planned
       | {pipeline, [type_spec()]}.              % TODO: Planned
 
--type validation_error() ::
+-type validation_error_reason() ::
         {bad_type_spec, _}
       | {wrong_type, Value::_, Found::json_shallow_type(), Expected::json_shallow_type()}
       | {missing_field, field_name()}
       | {superfluous_fields, [field_name()]}
         %% TODO: Add case for converter errors.
       | {does_not_satisfy, Value::_, condition_description()}.
+-type validation_error() ::
+        {validation_error, json, json_path(), validation_error_reason()}.
 
 -type json_path() :: [binary() | integer()].
 
@@ -35,7 +37,7 @@
 %%% Validate and reform a JSON term (in ejson or mochijson2 form).
 %%%
 -spec validate/2 :: (_JSon, _Type :: type_spec()) ->
-                            {ok, _} | {validation_error, json, json_path(), validation_error()}.
+                            {ok, _} | validation_error().
 
 validate(Value, Type) ->
     try {ok, validate(Value, Type, [])}
