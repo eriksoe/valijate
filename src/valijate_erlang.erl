@@ -161,8 +161,8 @@ validate_either(V, [], RevPath) ->
     %% Another possibility is to report all of the sub-validation error reasons.
     validation_error(RevPath, {does_not_satisfy, V, "any of the allowed types"});
 validate_either(V, [Type|Types], RevPath) ->
-    case validate(V, Type, RevPath) of
-        {ok,_}=Result -> Result;
+    case validate(V, Type) of
+        {ok,Result} -> Result;
         {validation_error,_,_,_} ->
             validate_either(V, Types, RevPath)
     end.
