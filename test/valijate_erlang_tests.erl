@@ -41,7 +41,7 @@ simple_type_test() ->
                       true                    -> false
                   end,
          if TypeOK ->
-                 ?assertEqual({ok,V1}, valijate_erlang:validate(V1, T2));
+                 ?assertEqual({ok,V1}, valijate:erlang(V1, T2));
             not TypeOK ->
                  TSeen = case T1 of
                              string -> list;
@@ -49,8 +49,8 @@ simple_type_test() ->
                              boolean -> atom;
                              _ -> T1
                          end,
-                 ?assertEqual({validation_error, [], {wrong_type, V1, TSeen, T2}},
-                              valijate_erlang:validate(V1, T2))
+                 ?assertEqual({validation_error, erlang, [], {wrong_type, V1, TSeen, T2}},
+                              valijate:erlang(V1, T2))
          end
      end
      || {T1,V1} <- TVs,
@@ -61,13 +61,13 @@ simple_type_test() ->
 
 string_happy_case_test() ->
     ?assertEqual({ok, "Thith ith a tetht"},
-                 valijate_erlang:validate("Thith ith a tetht", string)).
+                 valijate:erlang("Thith ith a tetht", string)).
 
 string_bad_case_test() ->
-    ?assertEqual({validation_error, [], {wrong_type, [xyz], list, string}},
-                 valijate_erlang:validate([xyz], string)),
-    ?assertEqual({validation_error, [], {wrong_type, "Unpure: " ++ x, list, string}},
-                 valijate_erlang:validate("Unpure: " ++ x, string)).
+    ?assertEqual({validation_error, erlang, [], {wrong_type, [xyz], list, string}},
+                 valijate:erlang([xyz], string)),
+    ?assertEqual({validation_error, erlang, [], {wrong_type, "Unpure: " ++ x, list, string}},
+                 valijate:erlang("Unpure: " ++ x, string)).
 
 proplist_happy_case_test() ->
     ?LOG_TRACE(begin
@@ -79,7 +79,7 @@ proplist_happy_case_test() ->
               {fred, <<"Hello, Harry!">>},
               {ginny, true}],
     ?assertEqual({ok, {<<"Hello, Harry!">>, "Hello, Harry!", true}},
-                 valijate_erlang:validate(Object, Spec)) end).
+                 valijate:erlang(Object, Spec)) end).
 
 
 proplist_ignore_rest_test() ->
@@ -90,7 +90,7 @@ proplist_ignore_rest_test() ->
                 {a, -123},
                 {c, 0}],
     ?assertEqual({ok, {-123, "string"}},
-                 valijate_erlang:validate(Proplist, Spec)).
+                 valijate:erlang(Proplist, Spec)).
 
 proplist_keep_rest_test() ->
     Spec = {proplist, [{a, number},
@@ -100,4 +100,4 @@ proplist_keep_rest_test() ->
                 {a, -123},
                 {c, 0}],
     ?assertEqual({ok, {-123, "string", {tag, [{c, 0}]}}},
-                 valijate_erlang:validate(Proplist, Spec)).
+                 valijate:erlang(Proplist, Spec)).

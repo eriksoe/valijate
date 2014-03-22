@@ -1,4 +1,4 @@
--module(valijate_tests).
+-module(valijate_json_tests).
 
 -compile(export_all).
 
@@ -25,10 +25,10 @@ simple_type_test() ->
 
     %% Matrix check: Value from V1, spec from T2:
     [if T2==T1 ->
-             ?assertEqual({ok,V1}, valijate:validate(V1, T2));
+             ?assertEqual({ok,V1}, valijate:json(V1, T2));
         T2/=T1 ->
-             ?assertEqual({validation_error, [], {wrong_type, V1, T1, T2}},
-                          valijate:validate(V1, T2))
+             ?assertEqual({validation_error, json, [], {wrong_type, V1, T1, T2}},
+                          valijate:json(V1, T2))
      end
      || {T1,V1} <- TVs,
         {T2,_V2} <- TVs,
@@ -45,7 +45,7 @@ object_happy_case_test() ->
                {<<"fred">>, -123},
                {<<"ginny">>, true}]},
     ?assertEqual({ok, {-123, <<"Hello, Harry!">>, true}},
-                 valijate:validate(Object, Spec)) end).
+                 valijate:json(Object, Spec)) end).
 
 object2_happy_case_test() ->
     ?LOG_TRACE(begin
@@ -58,7 +58,7 @@ object2_happy_case_test() ->
                {<<"fred">>, -123},
                {<<"ginny">>, true}]},
     ?assertEqual({ok, {-123, <<"Hello, Harry!">>, true}},
-                 valijate:validate(Object, Spec)) end).
+                 valijate:json(Object, Spec)) end).
 
 
 object_superfluous_fields_test() ->
@@ -68,8 +68,8 @@ object_superfluous_fields_test() ->
               [{<<"b">>, <<"string">>},
                {<<"a">>, -123},
                {<<"c">>, 0}]},
-    ?assertEqual({validation_error, [], {superfluous_fields, [<<"c">>]}},
-                 valijate:validate(Object, Spec)).
+    ?assertEqual({validation_error, json, [], {superfluous_fields, [<<"c">>]}},
+                 valijate:json(Object, Spec)).
 
 object_ignore_rest_test() ->
     Spec = {object, [{<<"a">>, number},
@@ -80,7 +80,7 @@ object_ignore_rest_test() ->
                {<<"a">>, -123},
                {<<"c">>, 0}]},
     ?assertEqual({ok, {-123, <<"string">>}},
-                 valijate:validate(Object, Spec)).
+                 valijate:json(Object, Spec)).
 
 object_keep_rest_test() ->
     Spec = {object, [{<<"a">>, number},
@@ -91,4 +91,4 @@ object_keep_rest_test() ->
                {<<"a">>, -123},
                {<<"c">>, 0}]},
     ?assertEqual({ok, {-123, <<"string">>, {tag, [{<<"c">>, 0}]}}},
-                 valijate:validate(Object, Spec)).
+                 valijate:json(Object, Spec)).
