@@ -23,7 +23,7 @@ required_key_absent_test() ->
 
 optional_key_absent_test() ->
     Key = '$valijate_absent',
-    ?assertEqual(the_fallback_value, valijate:get_env(stdlib, Key, {default, the_fallback_value}, atom)).
+    ?assertEqual({ok,the_fallback_value}, valijate:get_env(stdlib, Key, {default, the_fallback_value}, atom)).
 
 wrong_type_test() ->
     Key = '$valijate_present',

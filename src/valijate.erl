@@ -61,7 +61,7 @@ noisy_get_env(App, Key, Req, Spec) when is_atom(App), is_atom(Key) ->
 handle_absent_env_key(Req, Key) ->
     case Req of
         required -> error({application_config_not_set, Key});
-        {default, DefaultValue} -> DefaultValue
+        {default, DefaultValue} -> {ok,DefaultValue}
     end.
 
 %%%
