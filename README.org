@@ -1,12 +1,13 @@
 * Valijate
 ** Overview
-   Valijate is a JSON validator written in Erlang.
-   It combines the tasks of validating that a JSON value has a given type,
+   Valijate is a data validator and canonicalizer written in Erlang.
+   Valijate combines the tasks of validating that a value has a given type,
    and putting the data therein on a form which makes it easy to process
    with Erlang's pattern matching.
 
-   Valijate can handle JSON values on the formats emitted by the
-   mochijson2 and ejson JSON parsers.
+   Valijate can handle Erlang terms and JSON values.
+   The JSON value formats emitted by the mochijson2 and ejson JSON parsers
+   are supported.
 
 ** Comparison to similar tools
    There is a language-independent JSON type language, "JSON-schema".
@@ -18,7 +19,11 @@
    validating and others for accessing JSON values, it combines those two
    tasks.
 
+   Also, it support validation of Erlang terms -- for instance,
+   validation and canonicalization of application config settings.
+
 ** Example
+*** JSON:
    The following example converts a JSON string into an Erlang term
    of the form {Authors, Title, Available, Price}.
 
@@ -28,7 +33,7 @@
    > T = {object, [{<<"authors">>, {array,string}}, {<<"title">>, string},
                    {<<"available">>, boolean}, {<<"price">>, number}]}.
    > J = mochijson2:decode(S).
-   > {ok,V} = valijate:validate(J,T).
+   > {ok,V} = valijate:json(J,T).
 
    => {ok,{[<<"Bathilda Bagshot">>], <<"Hogwarts, a History">>,true,3.99}}
 #+END_SRC
@@ -36,15 +41,82 @@
    Note that the type specification determines the order of values in the
    resulting tuple - the order within the JSON object does not matter.
 
-** Error handling
-   A JSON value can fail validation in several different ways.
-   In all cases, the validator will report the location of the troubling item.
+*** Erlang:
+   The following example validates an Erlang term (here a key-value list) and
+   converts it into the canonicalized form {Authors, Title, Available, Price}.
+#+BEGIN_SRC erlang
+   > E = [{title, "Hogwarts, a History"}, {authors, ["Bathilda Bagshot"]},
+          {price, 3.99}, {available, true}].
+   > T = {proplist, [{authors, {list, string}}, {title, string},
+                     {available, boolean}, {price, number}]}.
+   > {ok,V} = valijate:erlang(E,T).
+=> {ok,{["Bathilda Bagshot"],"Hogwarts, a History",true,3.99}}
+#+END_SRC
 
-*** Wrong type
+   Note that the type specification determines the order of values in the
+   resulting tuple - the order within the property list does not matter.
+
+*** Erlang configuration:
+    One usecase for applying validation is for reading configuration settings.
+    Valijate includes a convenient shortcut for that purpose.
+
+    Here's a simple example -- reading the kernel parameter 'net_ticktime':
+#+BEGIN_SRC erlang
+    > valijate:get_env(kernel, net_ticktime, {default, 60}, integer).
+#+END_SRC erlang
+
+    If the validation rule is simple, so it the code to read the parameter.
+
+    Another example is the kernel parameter 'dist_auto_connect' which
+    may have the values 'never' 'once', or be absent, in which case
+    the meaning is "always auto-connect".
+    That parameter can be validated and read like this:
+
+#+BEGIN_SRC erlang
+    > valijate:get_env(kernel, dist_auto_connect,
+                       {default,always},
+                       {member, [never,once]}).
+    => {ok,once} or {ok,always} or {ok,never}
+#+END_SRC erlang
+
+    For a more complex example, take the following kernel parameter:
+
+         "net_setuptime = SetupTime:
+
+           SetupTime  must be a positive integer or floating point number, and
+           will be interpreted as the maximally allowed time for each  network
+           operation during connection setup to another Erlang node. The maxi‐
+           mum allowed value is 120; if higher values are given, 120  will  be
+           used.  The  default  value  if the variable is not given, or if the
+           value is incorrect (e.g. not a number), is 7 seconds."
+
+    There are several things going on, but it can all be expressed in
+    a Valijate type expression.
+    The parameter can be validated and read like this:
+
+#+BEGIN_SRC erlang
+    > application:set_env(kernel, net_setuptime, 175).
+    > valijate:get_env(kernel, net_setuptime,
+                       {default,7},
+                       {pipeline,
+                        [number,
+                         {satisfy, fun(V)->V>0 end, "must be positive"},
+                         {convert, fun(V) -> {ok,min(V,120)} end, "roof of 120"}]}).
+    => {ok,120}
+#+END_SRC erlang
+
+** Error handling
+   A value can fail validation in several different ways.
+   In all cases, the validator will report the location of the troubling item.
+   Regardless of what kind of value it was (Erlang term or JSON) which
+   failed validation, the function valijate:error_to_english/1 can be used
+   to obtain a human-readable description of the error (in English).
+
+*** Wrong type (Erlang / JSON)
     The simplest kind of error is when an item is expected to have one
     type, but turns out to have another type:
 #+BEGIN_SRC erlang
-    > E1 = valijate:validate(mochijson2:decode("[]"), number).
+    > E1 = valijate:json(mochijson2:decode("[]"), number).
     => {validation_error,[],{wrong_type,[],array,number}}
 
     > valijate:error_to_english(E1).
@@ -52,32 +124,41 @@
 #+END_SRC
 
     The path to the error is reported.
-    For array items, the path is the (zero-based) index of the item:
+    For JSON array items, the path is the (zero-based) index of the item:
 #+BEGIN_SRC erlang
-    > E2 = valijate:validate(mochijson2:decode("[true, false, 42]"), {array, boolean}).
+    > E2 = valijate:json(mochijson2:decode("[true, false, 42]"),
+                         {array, boolean}).
     > valijate:error_to_english(E2).
     => "At path [2] : Value 42 has type number, but boolean was expected"
 #+END_SRC
 
-    For objects, the path is the name of the object field:
+    For JSON objects, the path is the name of the object field:
 #+BEGIN_SRC erlang
-    > E3 = valijate:validate(mochijson2:decode("{\"foo\":\"42\"}"),
+    > E3 = valijate:json(mochijson2:decode("{\"foo\":\"42\"}"),
            {object, [{<<"foo">>, number}]}).
     > valijate:error_to_english(E3).
     => "At path .foo : Value has type string, but number was expected"
 
-    > E4 = valijate:validate(mochijson2:decode("{\"foo\": {\"bar\":\"42\"}}"),
+    > E4 = valijate:json(mochijson2:decode("{\"foo\": {\"bar\":\"42\"}}"),
            {object, [{<<"foo">>, {object, [{<<"bar">>, number}]}}]}).
     > valijate:error_to_english(E4).
     => "At path .foo.bar : Value has type string, but number was expected"
 #+END_SRC
 
-*** Missing object field
+    Similarly for Erlang property lists:
+#+BEGIN_SRC erlang
+    > E4 = valijate:erlang([{foo, [{bar,"42"}]}],
+                           {proplist, [{foo, {proplist, [{bar,integer}]}}]}).
+    > valijate:error_to_english(E4).
+    => "At path .foo.bar : Value has type list, but integer was expected"
+#+END_SRC
+
+*** Missing object field (JSON)
     Object fields may be required or optional.
     If a required field is missing, it is reported as an error:
 #+BEGIN_SRC erlang
-    > E10 = valijate:validate(mochijson2:decode("{}"),
-                              {object, [{<<"heavy">>, boolean}]}).
+    > E10 = valijate:json(mochijson2:decode("{}"),
+                          {object, [{<<"heavy">>, boolean}]}).
     > valijate:error_to_english(E10).
     => "At path <root> : The object is missing field \"heavy\""
 #+END_SRC
@@ -85,40 +166,40 @@
     Optional fields may be absent, in which case their default value
     is filled in:
 #+BEGIN_SRC erlang
-    > valijate:validate(mochijson2:decode("{}"),
-                        {object, [{opt, <<"heavy">>, boolean, maybe}]}).
+    > valijate:json(mochijson2:decode("{}"),
+                    {object, [{opt, <<"heavy">>, boolean, maybe}]}).
     => {ok,{maybe}}
 #+END_SRC
 
-*** Superfluous object fields
+*** Superfluous object fields (JSON)
     As default, objects may not contain fields which are not mentioned
     in the type specification.  Extra fields are reported as an error:
 
 #+BEGIN_SRC erlang
-    > E12 = valijate:validate(mochijson2:decode("{\"a\":12, \"b\":23, \"c\":34}"),
-                              {object, [{<<"b">>, number}]}).
+    > E12 = valijate:json(mochijson2:decode("{\"a\":12, \"b\":23, \"c\":34}"),
+                          {object, [{<<"b">>, number}]}).
     > valijate:error_to_english(E12).
     => "At path <root> : The object has superfluous fields: \"a\", \"c\""
 #+END_SRC
 
     If desired, extra fields may be caught and preserved:
 #+BEGIN_SRC erlang
-    > valijate:validate(mochijson2:decode("{\"a\":12, \"b\":23, \"c\":34}"),
-                        {object, [{<<"b">>, number},
+    > valijate:json(mochijson2:decode("{\"a\":12, \"b\":23, \"c\":34}"),
+                    {object, [{<<"b">>, number},
                                   {keep_rest, fun(X) -> {rest, X} end}]}).
     => {ok,{23,{rest,[{<<"a">>,12},{<<"c">>,34}]}}}
 #+END_SRC
 
 *** Constraint not satisfied
-    Items can be subject to Custom constraints:
+    Items can be subject to custom constraints:
 #+BEGIN_SRC erlang
     > IsPhoneNo = fun(X) -> re:run(X, "^[0-9]+$", [{capture, none}]) == match end.
-    > valijate:validate(mochijson2:decode("{\"phone\": \"12349\"}"),
-                              {object, [{<<"phone">>, {satisfy, IsPhoneNo, "phone number"}}]}).
+    > valijate:json(mochijson2:decode("{\"phone\": \"12349\"}"),
+                    {object, [{<<"phone">>, {satisfy, IsPhoneNo, "phone number"}}]}).
     => {ok,{<<"12349">>}}
 
-    > E15 = valijate:validate(mochijson2:decode("{\"phone\": \"+555\"}"),
-                              {object, [{<<"phone">>, {satisfy, IsPhoneNo, "phone number"}}]}).
+    > E15 = valijate:json(mochijson2:decode("{\"phone\": \"+555\"}"),
+                          {object, [{<<"phone">>, {satisfy, IsPhoneNo, "phone number"}}]}).
     > valijate:error_to_english(E15).
     => "At path .phone : The value does not satisfy phone number: <<\"+555\">>\n"
 #+END_SRC
