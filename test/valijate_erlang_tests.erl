@@ -101,3 +101,79 @@ proplist_keep_rest_test() ->
                 {c, 0}],
     ?assertEqual({ok, {-123, "string", {tag, [{c, 0}]}}},
                  valijate:erlang(Proplist, Spec)).
+
+member_test() ->
+    Allowed = [a,1,{a,pair},[a,list]],
+    Spec = {member, Allowed},
+    lists:foreach(fun(V) -> ?assertEqual({ok,V}, valijate:erlang(V, Spec)) end,
+                  [a, 1, {a,pair}, [a,list]]),
+
+    lists:foreach(fun(V) -> ?assertMatch({validation_error,erlang,[],{not_member,V,Allowed}},
+                                         valijate:erlang(V, Spec)) end,
+                  [b, 12, {another,pair}, [a,list,again]]),
+    ok.
+
+either0_test() ->
+    lists:foreach(fun(V) ->
+                          ?assertEqual({validation_error, erlang, [], {does_not_satisfy, V, "any of the allowed types"}},
+                                       valijate:erlang(V, {either, []}))
+                  end,
+                  [atom, 1, 2.5, {a,pair}, [a,list]]).
+
+either1_test() ->
+    ?LOG_TRACE(begin
+    TVs = [{atom, xyz},
+           {integer, 12345},
+           {float, 123.45},
+           {binary, <<"Some string">>}],
+
+    %% Matrix check: Type from T1, input from Input:
+    [begin
+         Spec = {either, [T1]},
+         TypeOK = InputType=:=T1,
+         if TypeOK ->
+                 ?assertEqual({ok,InputValue}, valijate:erlang(InputValue, Spec));
+            not TypeOK ->
+                 ?assertEqual({validation_error, erlang, [], {does_not_satisfy, InputValue, "any of the allowed types"}},
+                              valijate:erlang(InputValue, Spec))
+         end
+     end
+     || {T1,_} <- TVs,
+        {InputType,InputValue} <- TVs
+    ]
+               end).
+
+either2_test() ->
+    ?LOG_TRACE(begin
+    TVs = [{atom, xyz},
+           {integer, 12345},
+           {float, 123.45},
+           {binary, <<"Some string">>}],
+
+    %% Matrix check: Type from T1 and T2, input from Input:
+    [begin
+         Spec = {either, [T1,T2]},
+         TypeOK = InputType=:=T1 orelse InputType=:=T2,
+         if TypeOK ->
+                 ?assertEqual({ok,InputValue}, valijate:erlang(InputValue, Spec));
+            not TypeOK ->
+                 ?assertEqual({validation_error, erlang, [], {does_not_satisfy, InputValue, "any of the allowed types"}},
+                              valijate:erlang(InputValue, Spec))
+         end
+     end
+     || {T1,_} <- TVs,
+        {T2,_} <- TVs,
+        {InputType,InputValue} <- TVs
+    ]
+               end).
+
+either4_test() ->
+        TVs = [{atom, xyz},
+           {integer, 12345},
+           {float, 123.45},
+           {binary, <<"Some string">>}],
+    Spec = {either, [T || {T,_} <- TVs]},
+    lists:foreach(fun(V) ->
+                          ?assertEqual({ok,V}, valijate:erlang(V, Spec))
+                  end,
+                  [V || {_,V} <- TVs]).
