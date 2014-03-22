@@ -113,6 +113,7 @@ member_test() ->
                   [b, 12, {another,pair}, [a,list,again]]),
     ok.
 
+%%% An empty 'either' rejects everything.
 either0_test() ->
     lists:foreach(fun(V) ->
                           ?assertEqual({validation_error, erlang, [], {does_not_satisfy, V, "any of the allowed types"}},
@@ -168,7 +169,7 @@ either2_test() ->
                end).
 
 either4_test() ->
-        TVs = [{atom, xyz},
+    TVs = [{atom, xyz},
            {integer, 12345},
            {float, 123.45},
            {binary, <<"Some string">>}],
@@ -177,3 +178,66 @@ either4_test() ->
                           ?assertEqual({ok,V}, valijate:erlang(V, Spec))
                   end,
                   [V || {_,V} <- TVs]).
+
+%%% An empty 'pipeline' accepts anything and is the identity transform.
+pipeline0_test() ->
+    Values = value_collection(),
+    Spec = {pipeline, []},
+    lists:foreach(fun(V) ->
+                          ?assertEqual({ok,V}, valijate:erlang(V, Spec))
+                  end,
+                  Values).
+
+%%% A singleton pipeline is identical to just its single type.
+pipeline_singleton_test() ->
+    [?assertEqual(valijate:erlang(Value, Type),
+                  valijate:erlang(Value, {pipeline, [Type]}))
+     || Type <- type_collection(),
+        Value <- value_collection()].
+
+%%% An identity transform in a pipeline changes nothing.
+pipeline_add_identity_test() ->
+    Identity = {convert, fun(X) -> {ok,X} end, "identity"},
+    [begin
+         ?assertEqual(valijate:erlang(Value, Type),
+                      valijate:erlang(Value, {pipeline, [Type, Identity]})),
+         ?assertEqual(valijate:erlang(Value, Type),
+                      valijate:erlang(Value, {pipeline, [Identity, Type]}))
+     end
+     || Type <- type_collection(),
+        Value <- value_collection()].
+
+%%% The transformations in the pipeline are in fact applied.
+pipeline_squash_test() ->
+    Squash = {convert, fun(X) -> {ok, squashed} end, "squash"},
+    Squash2 = {convert, fun(X) -> {ok, squashed2} end, "squash"},
+    [begin
+         ?assertEqual({ok, squashed},
+                      valijate:erlang(Value, {pipeline, [Squash, atom]})),
+         ?assertEqual({ok, squashed2},
+                      valijate:erlang(Value, {pipeline, [Squash, atom, Squash2]})),
+         Expected = case valijate:erlang(Value, Type) of
+                        {ok,_} -> {ok, squashed};
+                        {validation_error,_,_,_}=VErr -> VErr
+                    end,
+         ?assertEqual(Expected,
+                      valijate:erlang(Value, {pipeline, [Type, Squash]}))
+     end
+     || Type <- type_collection(),
+        Value <- value_collection()].
+
+
+%%%============================================================
+
+type_collection() ->
+    [atom, integer, float, number, binary,
+     {list,atom},
+     {list,integer},
+     {proplist, [{a,atom}, {list, {list,integer}}, {property,integer}]}
+    ].
+
+value_collection() ->
+    [xyz, 12345, 123.45, <<"Some string">>,
+     [a,list,'of',atoms],
+     [{a,xxx},{property,2},{list,[]}]
+     ].
