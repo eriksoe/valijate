@@ -13,6 +13,8 @@
                 erlang:raise(Cls,Err,Trace)
         end).
 
+%%%========== Simple types: ========================================
+
 simple_type_test() ->
     ?LOG_TRACE(begin
     TVs = [{atom, xyz},
@@ -59,6 +61,33 @@ simple_type_test() ->
     ]
     end).
 
+%%%========== Lists: ========================================
+
+list_wrongbasetype_test() ->
+    [?assertMatch({validation_error,erlang,[], {wrong_type, Value, _, list}},
+                  valijate:erlang(Value, {list,atom}))
+     || Value <- value_collection(),
+        not is_list(Value)].
+
+list_test() ->
+    PartOptions = [[], [a], [abcdefg], [1], [[]]],
+    [begin
+         Value = Part1 ++ Part2 ++ Part3,
+         ActualResult = valijate:erlang(Value, {list,atom}),
+         case lists:all(fun erlang:is_atom/1, Value) of
+             true ->
+                 ?assertEqual({ok, Value}, ActualResult);
+             false ->
+                 ?assertMatch({validation_error,erlang,[_], _}, ActualResult)
+         end
+     end
+     || Part1 <- PartOptions,
+        Part2 <- PartOptions,
+        Part3 <- PartOptions
+    ].
+
+%%%========== Strings: ========================================
+
 string_happy_case_test() ->
     ?assertEqual({ok, "Thith ith a tetht"},
                  valijate:erlang("Thith ith a tetht", string)).
@@ -68,6 +97,8 @@ string_bad_case_test() ->
                  valijate:erlang([xyz], string)),
     ?assertEqual({validation_error, erlang, [], {wrong_type, "Unpure: " ++ x, list, string}},
                  valijate:erlang("Unpure: " ++ x, string)).
+
+%%%========== Property lists: ========================================
 
 proplist_happy_case_test() ->
     ?LOG_TRACE(begin
@@ -102,6 +133,8 @@ proplist_keep_rest_test() ->
     ?assertEqual({ok, {-123, "string", {tag, [{c, 0}]}}},
                  valijate:erlang(Proplist, Spec)).
 
+%%%========== Member: ========================================
+
 member_test() ->
     Allowed = [a,1,{a,pair},[a,list]],
     Spec = {member, Allowed},
@@ -112,6 +145,8 @@ member_test() ->
                                          valijate:erlang(V, Spec)) end,
                   [b, 12, {another,pair}, [a,list,again]]),
     ok.
+
+%%%========== Either: ========================================
 
 %%% An empty 'either' rejects everything.
 either0_test() ->
@@ -178,6 +213,8 @@ either4_test() ->
                           ?assertEqual({ok,V}, valijate:erlang(V, Spec))
                   end,
                   [V || {_,V} <- TVs]).
+
+%%%========== Pipeline: ========================================
 
 %%% An empty 'pipeline' accepts anything and is the identity transform.
 pipeline0_test() ->

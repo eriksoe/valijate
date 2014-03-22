@@ -13,6 +13,8 @@
                 erlang:raise(Cls,Err,Trace)
         end).
 
+%%%========== Simple types: ========================================
+
 simple_type_test() ->
     TVs = [{null, null},
            {number, 123.45},
@@ -34,6 +36,32 @@ simple_type_test() ->
         {T2,_V2} <- TVs,
         T2 /= object, T2 /= array % Only simple types.
     ].
+
+%%%========== Arrays: ========================================
+array_wrongbasetype_test() ->
+    [?assertMatch({validation_error,json,[], {wrong_type, Value, _, array}},
+                  valijate:json(Value, {array,number}))
+     || Value <- value_collection(),
+        not is_list(Value)].
+
+array_test() ->
+    PartOptions = [[], [12], [13.24], [[]]],
+    [begin
+         Value = Part1 ++ Part2 ++ Part3,
+         ActualResult = valijate:json(Value, {array,number}),
+         case lists:all(fun erlang:is_number/1, Value) of
+             true ->
+                 ?assertEqual({ok, Value}, ActualResult);
+             false ->
+                 ?assertMatch({validation_error,json,[_], _}, ActualResult)
+         end
+     end
+     || Part1 <- PartOptions,
+        Part2 <- PartOptions,
+        Part3 <- PartOptions
+    ].
+
+%%%========== Objects: ========================================
 
 object_happy_case_test() ->
     ?LOG_TRACE(begin
@@ -92,3 +120,26 @@ object_keep_rest_test() ->
                {<<"c">>, 0}]},
     ?assertEqual({ok, {-123, <<"string">>, {tag, [{<<"c">>, 0}]}}},
                  valijate:json(Object, Spec)).
+
+%%%============================================================
+
+type_collection() ->
+    [number, string, boolean,
+     {array,number},
+     {array,string},
+     {object, []},
+     {object, [{<<"key">>, string}]},
+     {object, [{<<"key">>, string}, {<<"otherkey">>, number}]}
+    ].
+
+value_collection() ->
+    [12345, 123.45, <<"Some string">>,
+     true, false,
+     [],
+     [123, 456, 7.89],
+     [<<"a">>, <<"456">>],
+     {[]},
+     {struct, []},
+     {struct, [{<<"key">>, <<"value">>}]},
+     {struct, [{<<"otherkey">>, 98.765}, {<<"key">>, <<"value">>}]}
+     ].
