@@ -17,8 +17,9 @@
       | {proplist, maybe_improper_list(proplist_field_spec(), proplist_field_extras_spec())}
       | {satisfy, fun((_)->_), condition_description()}
       | {convert, fun((_)->_), condition_description()}
-      | {either, [type_spec()]}                 % TODO: Planned
-      | {pipeline, [type_spec()]}.              % TODO: Planned
+      | {member, [term()]}
+      | {either, [type_spec()]}
+      | {pipeline, [type_spec()]}.
 
 -type validation_error_reason() ::
         {bad_type_spec, _}
@@ -87,6 +88,15 @@ validate(V, {convert, F, CondDescr}, RevPath) when is_function(F,1) ->
         {ok,Result} -> Result;
         {error,_Err} -> validation_error(RevPath, {does_not_satisfy, V, CondDescr})
     end;
+validate(V, {member, AllowedValues}, RevPath) ->
+    case lists:member(V, AllowedValues) of
+        true -> V;
+        false -> validation_error(RevPath, {not_member, V, AllowedValues})
+    end;
+validate(V, {either, Types}, RevPath) ->
+    validate_either(V, Types, RevPath);
+validate(V, {pipeline, Types}, RevPath) ->
+    validate_pipeline(V, Types, RevPath);
 validate(_, BadSpec, RevPath) ->
     validation_error(RevPath, {bad_type_spec, BadSpec}).
 
@@ -146,6 +156,25 @@ validate_proplist_field(Obj, {keep_rest, F}, _RevPath) ->
     {F(Obj), []}.
 %% TODO: Handle typespec error
 
+%%%---------- Disjunction ----------------------------------------
+validate_either(V, [], RevPath) ->
+    %% Another possibility is to report all of the sub-validation error reasons.
+    validation_error(RevPath, {does_not_satisfy, V, "any of the allowed types"});
+validate_either(V, [Type|Types], RevPath) ->
+    case validate(V, Type, RevPath) of
+        {ok,_}=Result -> Result;
+        {validation_error,_,_,_} ->
+            validate_either(V, Types, RevPath)
+    end.
+
+%%%---------- Pipeline ----------------------------------------
+validate_pipeline(V, [], _RevPath) ->
+    V;
+validate_pipeline(V, [Type|Types], RevPath) ->
+    V2 = validate(V, Type, RevPath),
+    validate_pipeline(V2, Types, RevPath).
+
+
 %%%========== Error reporting ========================================
 type_error(ExpectedType, Value, RevPath) ->
     validation_error(RevPath,
@@ -195,6 +224,9 @@ error_to_english({validation_error, erlang, Path, Details}) ->
                 "The object has superfluous fields: "
                     ++ string:join([["\"", FN, "\""] || FN <- FieldNames],
                                    ", ");
+            {not_member, Value, AllowedValues} ->
+                io_lib:format("The value ~p is not among the allowed values ~p\n",
+                              [Value, AllowedValues]);
             {does_not_satisfy, Value, CondDescr} ->
                 io_lib:format("The value does not satisfy ~s: ~p\n",
                               [CondDescr, Value])
