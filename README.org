@@ -22,7 +22,12 @@
    Also, it support validation of Erlang terms -- for instance,
    validation and canonicalization of application config settings.
 
-** Example
+** API
+   See doc/API.org for a detailed API description.
+
+   For examples of its use, read on.
+
+** Examples
 *** JSON:
    The following example converts a JSON string into an Erlang term
    of the form {Authors, Title, Available, Price}.
@@ -100,7 +105,7 @@
                        {default,7},
                        {pipeline,
                         [number,
-                         {satisfy, fun(V)->V>0 end, "must be positive"},
+                         {satisfy, fun(V) -> V>0 end, "must be positive"},
                          {convert, fun(V) -> {ok,min(V,120)} end, "roof of 120"}]}).
     => {ok,120}
 #+END_SRC erlang

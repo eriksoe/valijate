@@ -1,6 +1,7 @@
 *.beam
 *.app
 .eunit/
+/doc/html
 
 # Backup files:
 *~

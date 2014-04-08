@@ -6,6 +6,8 @@
 
 -type condition_description() :: valijate:condition_description().
 -type erlang_shallow_type() :: atom | integer | float | number | binary | boolean | list | tuple.
+-type predicate() :: fun((_) -> boolean()).
+-type convertion_fun() :: fun((_)->{ok,_} | {error,_}).
 -type field_name() :: atom().
 -type proplist_field_spec() ::
         {atom(), type_spec()}
@@ -15,8 +17,8 @@
         atom | integer | float | number | binary | boolean | list | tuple | string
       | {list, type_spec()}
       | {proplist, maybe_improper_list(proplist_field_spec(), proplist_field_extras_spec())}
-      | {satisfy, fun((_)->_), condition_description()}
-      | {convert, fun((_)->_), condition_description()}
+      | {satisfy, predicate(), condition_description()}
+      | {convert, conversion_fun(), condition_description()}
       | {member, [term()]}
       | {either, [type_spec()]}
       | {pipeline, [type_spec()]}.
