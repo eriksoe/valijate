@@ -7,7 +7,7 @@
 -type condition_description() :: valijate:condition_description().
 -type erlang_shallow_type() :: atom | integer | float | number | binary | boolean | list | tuple.
 -type predicate() :: fun((_) -> boolean()).
--type convertion_fun() :: fun((_)->{ok,_} | {error,_}).
+-type conversion_fun() :: fun((_)->{ok,_} | {error,_}).
 -type field_name() :: atom().
 -type proplist_field_spec() ::
         {atom(), type_spec()}
