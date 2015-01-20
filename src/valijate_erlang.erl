@@ -16,6 +16,7 @@
 -type type_spec() ::
         atom | integer | float | number | binary | boolean | list | tuple | string
       | {list, type_spec()}
+      | {tuple, [type_spec()]}
       | {proplist, maybe_improper_list(proplist_field_spec(), proplist_field_extras_spec())}
       | {satisfy, predicate(), condition_description()}
       | {convert, conversion_fun(), condition_description()}
@@ -72,6 +73,13 @@ validate(V, {list, ElemType}, RevPath) ->
        true ->
             type_error(list, V, RevPath)
     end;
+%% Tuples:
+validate(V, {tuple, ElemTypes}, RevPath) when is_list(ElemTypes) ->
+    if is_tuple(V) ->
+            validate_tuple(V, ElemTypes, RevPath);
+       true ->
+            type_error(tuple, V, RevPath)
+    end;
 %% Objects:
 %% Proplists:
 validate(Fs, {proplist, FieldTypes}, RevPath) when is_list(Fs),
@@ -114,6 +122,23 @@ validate_list([H|T], ElemType, RevPath, Idx) ->
 validate_list(Tail, _ElemType, RevPath, _Idx) ->
     validation_error(RevPath,
                      {unpure_list, Tail, shallow_type(Tail)}).
+
+%%%---------- Tuples ----------------------------------------
+validate_tuple(Tuple, ElemTypes, RevPath) ->
+    ExpectedSize = length(ElemTypes),
+    if tuple_size(Tuple) == ExpectedSize ->
+            list_to_tuple(validate_tuple(Tuple, ElemTypes, RevPath, 1));
+       true ->
+            validation_error(RevPath,
+                             {tuple_size_mismatch, tuple_size(Tuple), ExpectedSize})
+    end.
+
+validate_tuple(_Tuple, [], _RevPath, _Idx) ->
+    [];
+validate_tuple(Tuple, [ElemType|ElemTypes], RevPath, Idx) ->
+    Elem = element(Idx, Tuple),
+    [validate(Elem, ElemType, [Idx|RevPath])
+     | validate_tuple(Tuple, ElemTypes, RevPath, Idx+1)].
 
 %%%---------- Objects ----------------------------------------
 validate_proplist(Fs, FieldTypes, RevPath) ->
@@ -220,6 +245,8 @@ error_to_english({validation_error, erlang, Path, Details}) ->
                 end;
             {unpure_list, _Tail, TailType} ->
                 io_lib:format("List has unpure end of type ~p", [TailType]);
+            {tuple_size_mismatch, Actual, Expected} ->
+                io_lib:format("Tuple has ~b elements, not ~b as expected", [Actual, Expected]);
             {missing_field, FieldName} ->
                 io_lib:format("The object is missing field \"~s\"", [FieldName]);
             {superfluous_fields, FieldNames} ->

@@ -86,6 +86,30 @@ list_test() ->
         Part3 <- PartOptions
     ].
 
+tuple_test() ->
+    ?assertEqual({ok, {"foo", 123}},
+                 valijate:erlang({"foo", 123}, {tuple,[string,integer]})),
+    %% Bad element:
+    BadElem = valijate:erlang({456, 123}, {tuple,[string,integer]}),
+    ?assertMatch({validation_error,erlang,[1], _}, BadElem),
+    %% Bad root:
+    BadRoot = valijate:erlang(123, {tuple,[string,integer]}),
+    ?assertMatch({validation_error,erlang,[], _}, BadRoot),
+    %% Bad length:
+    BadLength1 = valijate:erlang({123}, {tuple,[string,integer]}),
+    ?assertMatch({validation_error,erlang,[], {tuple_size_mismatch, 1, 2}},
+                 BadLength1),
+    BadLength2 = valijate:erlang({"1","2","3"}, {tuple,[string,integer]}),
+    ?assertMatch({validation_error,erlang,[], {tuple_size_mismatch, 3, 2}},
+                 BadLength2),
+
+    lists:foreach(fun(Err) ->
+                          %%io:format(user, "English: ~p\n", [valijate:error_to_english(Err)]),
+                          [_|_] = valijate:error_to_english(Err)
+                  end,
+                  [BadElem, BadRoot, BadLength1, BadLength2]).
+
+
 %%%========== Strings: ========================================
 
 string_happy_case_test() ->
