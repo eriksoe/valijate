@@ -18,12 +18,12 @@
                           | valijate_json:validation_error().
 
 %%% Validate an Erlang term against a type specification.
--spec erlang/2 :: (_, erlang_spec()) ->
+-spec erlang (_, erlang_spec()) ->
                           {ok,_} | valijate_erlang:validation_error().
 erlang(Data, Typespec) -> valijate_erlang:validate(Data, Typespec).
 
 %%% Validate a JSON value against a type specification.
--spec json/2 :: (_, json_spec()) ->
+-spec json (_, json_spec()) ->
                         {ok,_} | valijate_json:validation_error().
 json(Data, Typespec) -> valijate_json:validate(Data, Typespec).
 
@@ -31,7 +31,7 @@ json(Data, Typespec) -> valijate_json:validate(Data, Typespec).
 %%% Obtain a given Erlang application setting, validating it against a
 %%% type specification.
 -type required_or_optional() :: required | {default, Value::_}.
--spec get_env/4 :: (App::atom(), Key::atom(), required_or_optional(), erlang_spec()) -> _.
+-spec get_env (App::atom(), Key::atom(), required_or_optional(), erlang_spec()) -> _.
 get_env(App, Key, Req, Spec) when is_atom(App), is_atom(Key) ->
     case application:get_env(App, Key) of
         {ok, Value} ->
@@ -41,7 +41,7 @@ get_env(App, Key, Req, Spec) when is_atom(App), is_atom(Key) ->
     end.
 
 %%% Same as get_env/4, but log something suitable in case the value is maltyped.
--spec noisy_get_env/4 :: (App::atom(), Key::atom(), required_or_optional(), erlang_spec()) -> _.
+-spec noisy_get_env (App::atom(), Key::atom(), required_or_optional(), erlang_spec()) -> _.
 noisy_get_env(App, Key, Req, Spec) when is_atom(App), is_atom(Key) ->
     case application:get_env(App, Key) of
         {ok, Value} ->
@@ -66,7 +66,7 @@ handle_absent_env_key(Req, Key) ->
 
 %%%
 
--spec error_to_english/1 :: (validation_error()) -> iolist().
+-spec error_to_english (validation_error()) -> iolist().
 error_to_english({validation_error, erlang, _, _}=VErr) ->
     valijate_erlang:error_to_english(VErr);
 error_to_english({validation_error, json, _, _}=VErr) ->
