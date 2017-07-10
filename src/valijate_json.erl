@@ -37,7 +37,7 @@
 
 %%% Validate and reform a JSON term (in ejson or mochijson2 form).
 %%%
--spec validate/2 :: (_JSon, _Type :: type_spec()) ->
+-spec validate (_JSon, _Type :: type_spec()) ->
                             {ok, _} | validation_error().
 
 validate(Value, Type) ->
@@ -178,7 +178,7 @@ validation_error(RevPath, ErrorDetail) ->
            ErrorDetail}).
 
 %%% Determine the (shallow) type of a JSON term.
--spec json_type/1 :: (_) -> json_shallow_type().
+-spec json_type (_) -> json_shallow_type().
 json_type(null)                 -> null;
 json_type(V) when is_number(V)  -> number;
 json_type(V) when is_binary(V)  -> string;
@@ -190,7 +190,7 @@ json_type({struct, Fs}) when is_list(Fs) -> object. % MochiJSON style
 
 %%% Convert a validation-error output to a human readable description
 %%% of the error.
--spec error_to_english/1 :: (validation_error()) -> iolist().
+-spec error_to_english (validation_error()) -> iolist().
 error_to_english({validation_error, json, Path, Details}) ->
     PathTxt = path_to_string(Path),
     DetailText =

@@ -41,7 +41,7 @@
 
 %%% Validate and reform an Erlang term.
 %%%
--spec validate/2 :: (_Term, _Type :: type_spec()) ->
+-spec validate (_Term, _Type :: type_spec()) ->
                             validation_error().
 
 validate(Value, Type) ->
@@ -215,7 +215,7 @@ validation_error(RevPath, ErrorDetail) ->
            ErrorDetail}).
 
 %%% Determine the (shallow) type of a JSON term.
--spec shallow_type/1 :: (_) -> erlang_shallow_type().
+-spec shallow_type (_) -> erlang_shallow_type().
 shallow_type(V) when is_atom(V)    -> atom;
 shallow_type(V) when is_number(V)  -> number;
 shallow_type(V) when is_binary(V)  -> binary;
@@ -229,7 +229,7 @@ shallow_type(V) when is_function(V)-> function.
 
 %%% Convert a validation-error output to a human readable description
 %%% of the error.
--spec error_to_english/1 :: (validation_error()) -> iolist().
+-spec error_to_english (validation_error()) -> iolist().
 error_to_english({validation_error, erlang, Path, Details}) ->
     PathTxt = path_to_string(Path),
     DetailText =
